@@ -109,6 +109,14 @@ def predict(model: nn.Module, images: np.ndarray, scaler: TargetScaler, device: 
     return scaler.inverse(np.concatenate(out))
 
 
+def load_predictor(path: Path, device: str = "cpu") -> tuple[LayoutCNN, TargetScaler, list[str]]:
+    """Load a trained predictor checkpoint: model, target scaler, target names."""
+    ckpt = torch.load(path, map_location=device, weights_only=False)
+    model = LayoutCNN(len(ckpt["targets"]), tuple(ckpt["channels"]), ckpt["image_size"])
+    model.load_state_dict(ckpt["state_dict"])
+    return model.eval(), TargetScaler.from_dict(ckpt["scaler"]), ckpt["targets"]
+
+
 # --------------------------------------------------------------------------- baselines
 def mean_baseline(y_train: np.ndarray, n: int) -> np.ndarray:
     """Baseline (a): the training mean of every indicator, for n samples."""

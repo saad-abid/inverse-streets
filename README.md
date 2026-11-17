@@ -1,6 +1,6 @@
 # InverseStreets – Predicting and Generating Road Layouts with Deep Learning
 
-> **Status:** Phase 4 (conditional generation) done.
+> **Status:** Phase 5 (evaluation of generated layouts) done.
 
 ## Goal
 Predict mobility indicators from small 2D street-grid images, and generate new layouts that reach
@@ -63,6 +63,14 @@ python -m src.generator --from-checkpoint   # reuse models/generator.pt: recalib
 Outputs: `models/generator.pt` (not committed), `results/generator_training.csv/.png`,
 `results/generator_threshold_calibration.csv`, `results/generator_quickcheck.csv`,
 `results/generated_examples.png`.
+
+**Phase 5 – evaluation of generated layouts** (needs the trained predictor and generator)
+```bash
+python -m src.evaluate                      # about 35 s
+```
+Outputs: `results/generation_metrics.csv`, `generation_per_target.csv`, `generation_by_style.csv`,
+`generation_cnn_crosscheck.csv`, `generation_target_agreement.png`, `generation_distributions.png`,
+`generated_grid.png`, and the written analysis `results/analysis.md`.
 
 ## Results
 ### Phase 1 – dataset
@@ -167,6 +175,30 @@ Quick check on 100 test targets, one sample each, indicators recomputed with the
 | connected road network | 34% of samples | real layouts: 100% |
 
 ![Generated layouts](results/generated_examples.png)
+
+### Phase 5 – evaluation of generated layouts
+60 targets (15 real test layouts per style) x 10 generated layouts = 600 layouts, all
+indicators recomputed with the graph method. Reference: the 10 real training layouts closest to
+each target. Full discussion in [`results/analysis.md`](results/analysis.md).
+
+| Metric | Generated | Nearest 10 real |
+|---|---|---|
+| road density MAE / median relative error | 0.031 / 10.6 % | 0.003 / 1.0 % |
+| intersections MAE / median relative error | 7.42 / 37.9 % | 0.28 / 0.0 % |
+| connected road network | 38.3 % | 100 % |
+| no small isolated fragments | 45.0 % | 100 % |
+| realistic road width (1.0–3.0 px, from real data) | 99.0 % | 99.8 % |
+| mean pairwise pixel difference (diversity) | 0.325 | 0.339 |
+| Wasserstein distance to real test layouts, dead ends | 7.30 | 0.12 |
+
+CNN predictor on generated layouts vs graph method (R²): density 0.986, intersections 0.861,
+avg shortest path 0.187, congestion index 0.123 (on real test layouts: 0.993, 0.983, 0.917,
+0.629). The learned predictor is not a reliable judge of generated layouts.
+
+(The Phase 4 quick check used 100 other targets with one sample each, so its numbers differ.)
+
+![Target agreement](results/generation_target_agreement.png)
+![Generated grid](results/generated_grid.png)
 
 ## Limitations
 - Layouts are simple procedural patterns on a 64x64 pixel grid, not real street maps.

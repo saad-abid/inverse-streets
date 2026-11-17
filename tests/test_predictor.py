@@ -22,7 +22,7 @@ from src.predictor import (
 # --------------------------------------------------------------------------- metrics
 def test_perfect_prediction_metrics() -> None:
     y = np.array([1.0, 2.0, 3.0])
-    assert regression_metrics(y, y) == {"mae": 0.0, "rmse": 0.0, "r2": 1.0}
+    assert regression_metrics(y, y) == {"mae": 0.0, "rmse": 0.0, "r2": 1.0, "n": 3}
 
 
 def test_mean_prediction_has_r2_zero() -> None:
@@ -35,6 +35,12 @@ def test_known_errors() -> None:
     assert out["mae"] == pytest.approx(2.0)
     assert out["rmse"] == pytest.approx(np.sqrt(5.0))
     assert np.isnan(out["r2"])  # constant truth
+
+
+def test_metrics_skip_missing_pairs() -> None:
+    out = regression_metrics(np.array([1.0, np.nan, 3.0]), np.array([2.0, 5.0, np.nan]))
+    assert out["n"] == 1 and out["mae"] == 1.0
+    assert regression_metrics(np.array([np.nan]), np.array([1.0]))["n"] == 0
 
 
 def test_metrics_table_shape() -> None:
