@@ -100,7 +100,33 @@ layouts must be checked with the graph method, not with the learned predictor.
   generator on every metric. A generator becomes useful for targets or combinations that the
   dataset does not contain, which Phase 6 has to check with explicit constraints.
 
-## 4. Possible improvements (not done)
+## 4. Text requests, constraints and the LLM (Phase 6)
+
+Source: `llm_requests.csv`. A local LLM (`qwen3.5:4b` through Ollama, CPU only) translated 8
+hand-written requests into JSON; all 8 answers matched the JSON schema. The LLM copied every
+explicit number and did not repair contradictions, so the explicit rules could reject them:
+"very low road density but 40 intersections" and "a very dense city with almost no
+intersections" were both rejected by three rules, each with a message saying which values the
+dataset contains instead.
+
+The decision matched the expected one for 6 of 8 requests. The two differences come from the
+interaction between language and data, not from the code:
+
+- "many intersections and little congestion" was mapped to the dataset extremes (64
+  intersections, congestion index 1.22). Dense layouts with many intersections have a
+  congestion index of at least 3.15 in this dataset, so the request was rejected. Whether
+  "little congestion" should mean "the lowest ever seen" or "lower than usual" is a modelling
+  choice that should be made explicit, not left to the LLM.
+- "a sparse suburb" was mapped to density 0.09, below the fixed lower limit of 0.10 from the
+  project plan. 12.4 % of the training layouts are below 0.10, so this fixed rule is stricter
+  than the data.
+
+For the two accepted requests, 5 of 20 and 13 of 20 generated layouts passed all layout rules
+(density range, connectivity, congestion limit). Generation followed by filtering with the
+graph method is what makes the final output trustworthy, since the generator itself cannot
+guarantee connectivity or aim at a congestion level.
+
+## 5. Possible improvements (not done)
 
 Longer training (the validation loss was still decreasing at epoch 30); a connectivity or
 topology term in the loss; conditioning on more indicators (congestion) or on the style;

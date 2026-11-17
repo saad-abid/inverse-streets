@@ -1,6 +1,6 @@
 # InverseStreets – Predicting and Generating Road Layouts with Deep Learning
 
-> **Status:** Phase 5 (evaluation of generated layouts) done.
+> **Status:** Phase 6 (constraints and LLM specification) done.
 
 ## Goal
 Predict mobility indicators from small 2D street-grid images, and generate new layouts that reach
@@ -71,6 +71,16 @@ python -m src.evaluate                      # about 35 s
 Outputs: `results/generation_metrics.csv`, `generation_per_target.csv`, `generation_by_style.csv`,
 `generation_cnn_crosscheck.csv`, `generation_target_agreement.png`, `generation_distributions.png`,
 `generated_grid.png`, and the written analysis `results/analysis.md`.
+
+**Phase 6 – constraints and LLM specification** (optional: [Ollama](https://ollama.com) with a
+local model, set in `configs/default.yaml` under `llm`)
+```bash
+python -m src.llm_spec "a sparse suburb with few intersections"
+python -m src.llm_spec --examples           # 8 consistent / inconsistent requests
+```
+Outputs: `results/llm_requests.csv`, `results/llm_request_layouts.png`. `llm.num_gpu: 0` runs
+the model on the CPU; on the development laptop the Ollama GPU backend crashed with a CUDA
+toolchain error on an older NVIDIA driver.
 
 ## Results
 ### Phase 1 – dataset
@@ -200,6 +210,41 @@ avg shortest path 0.187, congestion index 0.123 (on real test layouts: 0.993, 0.
 ![Target agreement](results/generation_target_agreement.png)
 ![Generated grid](results/generated_grid.png)
 
+### Phase 6 – constraints and LLM specification
+`src/constraints.py` checks a target **before** generation, each rule with a pass/fail message:
+road density in [0.10, 0.60]; intersections inside the 1st–99th percentile range of training
+layouts with similar density; at least 5 training layouts close to the (density, intersections)
+combination; if a maximum congestion index is requested, at least one similar training layout
+must reach it. After generation, each layout is checked with the graph method: density in range,
+connectivity >= 0.95, congestion below the requested maximum. Except for the fixed density
+range, all limits are measured on the training data.
+
+`src/llm_spec.py` sends the request to a **local LLM through Ollama** (here `qwen3.5:4b`, CPU
+only), forces a JSON answer, validates it with a JSON schema, then applies the rules. The
+prompt gives the LLM the dataset ranges and tells it to copy numbers exactly and **not** to
+repair inconsistencies. Tests use a mocked LLM and run offline.
+
+Eight example requests (`results/llm_requests.csv`), 16–35 s per request on CPU:
+
+| Request | LLM JSON (density, intersections, max congestion) | Decision | Failed rules |
+|---|---|---|---|
+| a dense neighbourhood with many intersections and little congestion | 0.41, 64, 1.22 | reject | intersections vs density; congestion not reachable (lowest similar 3.15) |
+| a sparse suburb with few intersections | 0.09, 5, – | reject | density below 0.10 |
+| a medium density grid with about 20 intersections | 0.20, 20, – | accept | – (5 of 20 generated layouts pass the layout rules) |
+| road density 0.3 and 25 intersections | 0.30, 25, – | accept | – (13 of 20 generated layouts pass) |
+| very low road density but 40 intersections | 0.09, 40, – | reject | density range; intersections vs density; combination never seen |
+| road density 0.05 with 3 intersections | 0.05, 3, – | reject | density range |
+| a very dense city with almost no intersections | 0.61, 2, – | reject | density range; intersections vs density; combination never seen |
+| road density 0.4 with 35 intersections and a congestion index below 1.3 | 0.40, 35, 1.3 | reject | congestion not reachable (lowest similar 2.49) |
+
+The LLM copied every explicit number and did not repair the contradictory requests. The
+decision matched my expectation for 6 of 8 requests. The two differences are informative:
+the LLM maps "many" / "little" to the dataset **extremes**, which makes the plan's own example
+request unreachable; and "sparse" maps to 0.09, below the fixed limit of 0.10, although 12.4 %
+of the training layouts (mostly cul-de-sacs) have a density below 0.10.
+
+![Accepted requests](results/llm_request_layouts.png)
+
 ## Limitations
 - Layouts are simple procedural patterns on a 64x64 pixel grid, not real street maps.
 - The styles are easy to tell apart, and road density differs strongly between styles.
@@ -213,6 +258,9 @@ avg shortest path 0.187, congestion index 0.123 (on real test layouts: 0.993, 0.
 - The cVAE matches road density reasonably but intersections poorly, often produces broken
   networks (34% connected), draws thin regular grids as broken lines, and never draws rings:
   two numbers do not tell it which style to draw.
+- LLM specification: tested on 8 hand-written requests only, with one small local model; the
+  word-to-number mapping depends on the prompt. The connectivity rule (>= 0.95 of graph nodes in
+  the main network) still lets very small loose fragments pass.
 - Connectivity is 1.0 for every layout, because the generator guarantees connected networks; it
   will only become informative for generated layouts (Phase 5).
 

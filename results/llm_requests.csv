@@ -1,0 +1,41 @@
+request,expected,decision,llm_json,llm_seconds,failed_rules,n_generated,n_valid_layouts,mean_generated_density,mean_generated_intersections
+a dense neighbourhood with many intersections and little congestion,accept,reject,"{
+  ""road_density"": 0.41,
+  ""intersections"": 64,
+  ""max_congestion_index"": 1.22
+}",16.6,intersections_vs_density; congestion_reachable,,,,
+a sparse suburb with few intersections,accept,reject,"{
+  ""road_density"": 0.09,
+  ""intersections"": 5,
+  ""max_congestion_index"": null
+}",35.4,density_in_range,,,,
+a medium density grid with about 20 intersections,accept,accept,"{
+  ""road_density"": 0.2,
+  ""intersections"": 20,
+  ""max_congestion_index"": null
+}",17.4,,20.0,5.0,0.1726806640625,14.5
+road density 0.3 and 25 intersections,accept,accept,"{
+  ""road_density"": 0.3,
+  ""intersections"": 25,
+  ""max_congestion_index"": null
+}",25.4,,20.0,13.0,0.294091796875,22.5
+very low road density but 40 intersections,reject,reject,"{
+  ""road_density"": 0.09,
+  ""intersections"": 40,
+  ""max_congestion_index"": null
+}",18.1,density_in_range; intersections_vs_density; combination_in_dataset,,,,
+road density 0.05 with 3 intersections,reject,reject,"{
+  ""road_density"": 0.05,
+  ""intersections"": 3,
+  ""max_congestion_index"": null
+}",25.3,density_in_range,,,,
+a very dense city with almost no intersections,reject,reject,"{
+  ""road_density"": 0.61,
+  ""intersections"": 2,
+  ""max_congestion_index"": null
+}",16.4,density_in_range; intersections_vs_density; combination_in_dataset,,,,
+road density 0.4 with 35 intersections and a congestion index below 1.3,reject,reject,"{
+  ""road_density"": 0.4,
+  ""intersections"": 35,
+  ""max_congestion_index"": 1.3
+}",23.2,congestion_reachable,,,,

@@ -65,6 +65,23 @@ generator:                # conditional VAE (Phase 4)
   max_fragment_size: 10   # remove road fragments of <= this many pixels
   max_hole_size: 4        # fill holes of <= this many pixels
 
+constraints:              # Phase 6
+  density_min: 0.10
+  density_max: 0.60
+  min_connectivity: 0.95  # generated layouts: share of nodes in the largest network
+  density_bin: 0.05       # width of the density window for the intersections rule
+  intersections_percentiles: [1, 99]
+  support_radius: 0.25    # "similar layout" radius in standardized (density, intersections) units
+  min_support: 5          # similar training layouts needed to accept a combination
+
+llm:                      # Phase 6, optional local LLM through Ollama
+  model: qwen3.5:4b
+  url: http://localhost:11434/api/chat
+  temperature: 0.0
+  num_gpu: 0              # model layers on the GPU; 0 = CPU only (avoids GPU driver/CUDA mismatches)
+  timeout_s: 180
+  n_generate: 20          # layouts generated per accepted request
+
 training:
   batch_size: 64
   epochs: 20
