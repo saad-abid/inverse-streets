@@ -34,9 +34,17 @@ cul_de_sac:
   branch_prob: 0.8        # chance of a dead-end branch at each position on each side
   spur_prob: 0.4          # chance that a branch gets a short side spur
 
-traffic:
+graph:
+  min_spur_length: 3.0    # dead-end edges shorter than this (px) are skeleton artefacts
+  merge_length: 3.0       # intersections closer than this (px) are merged into one
+  border_margin: 2        # road ends within this distance (px) of the border are border exits
+  n_sources: 20           # random source nodes for path-length / detour statistics
+  min_euclid: 5.0         # ignore node pairs closer than this (px) for the detour index
+
+traffic:                  # simplified all-or-nothing assignment, NOT a calibrated simulation
   n_trips: 200            # origin-destination trips per layout
   congestion_threshold: 2.0   # load / mean load above which a segment counts as congested
+  min_block_area: 4       # ignore city blocks smaller than this (pixels)
 
 training:
   batch_size: 64

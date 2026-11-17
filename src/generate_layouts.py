@@ -149,6 +149,22 @@ def radial(size: int, rng: np.random.Generator, cfg: dict) -> tuple[Image, Param
     return img, params
 
 
+def _spur_area_is_free(img: Image, row: int, col: int, direction: int, length: int, width: int) -> bool:
+    """True if a side spur from the branch at `col` would not touch any other road
+    (checks the spur's pixels plus a 2-pixel margin, outside the branch itself) and would
+    end at least 3 pixels from the image border (so it is a dead end, not a border exit)."""
+    offs = _stamp_offsets(width)
+    branch_edge = col + (offs[-1] if direction > 0 else offs[0])
+    near = branch_edge + direction
+    far = col + direction * (length + 2) + (offs[-1] if direction > 0 else offs[0])
+    c0, c1 = sorted((near, far))
+    r0, r1 = row + offs[0] - 2, row + offs[-1] + 2
+    h, w = img.shape
+    if c0 < 1 or c1 > w - 2 or r0 < 0 or r1 >= h:  # tip stays >= 3 px from the border
+        return False
+    return not img[r0:r1 + 1, c0:c1 + 1].any()
+
+
 def cul_de_sac(size: int, rng: np.random.Generator, cfg: dict) -> tuple[Image, Params]:
     """One main road with perpendicular dead-end branches (and optional side spurs)."""
     c_cfg = cfg["cul_de_sac"]
@@ -158,9 +174,10 @@ def cul_de_sac(size: int, rng: np.random.Generator, cfg: dict) -> tuple[Image, P
     draw_segment(img, (y0, 0), (y0, size - 1), width)
 
     margin = width + 3  # keep bulbs away from the border
-    spur_dir = int(rng.choice([-1, 1]))  # all spurs point the same way -> no collisions
-    n_branches = n_spurs = 0
-    for x in range(int(rng.integers(2, spacing)), size - 2, spacing):
+    spur_dir = int(rng.choice([-1, 1]))
+    n_branches = 0
+    spurs: list[tuple[int, int, int]] = []  # (row, col, length), drawn after all branches
+    for x in range(margin + int(rng.integers(0, spacing)), size - margin, spacing):
         for direction in (-1, 1):
             available = (y0 - margin) if direction < 0 else (size - 1 - margin - y0)
             if available < spacing or rng.random() >= c_cfg["branch_prob"]:
@@ -173,9 +190,13 @@ def cul_de_sac(size: int, rng: np.random.Generator, cfg: dict) -> tuple[Image, P
             n_branches += 1
             if rng.random() < c_cfg["spur_prob"]:
                 spur_y = y0 + direction * int(length * rng.uniform(0.4, 0.8))
-                spur_len = int(rng.integers(2, max(3, spacing // 2) + 1))
-                draw_segment(img, (spur_y, x), (spur_y, x + spur_dir * spur_len), width)
-                n_spurs += 1
+                spurs.append((spur_y, x, int(rng.integers(width + 3, width + 6))))
+
+    n_spurs = 0
+    for spur_y, x, spur_len in spurs:
+        if _spur_area_is_free(img, spur_y, x, spur_dir, spur_len, width):
+            draw_segment(img, (spur_y, x), (spur_y, x + spur_dir * spur_len), width)
+            n_spurs += 1
 
     transposed = bool(rng.random() < 0.5)  # random orientation
     if transposed:
