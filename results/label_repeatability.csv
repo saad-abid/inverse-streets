@@ -1,0 +1,5 @@
+model,indicator,mae,rmse,r2
+same_layout_other_seed,road_density,0.0,0.0,1.0
+same_layout_other_seed,n_intersections,0.0,0.0,1.0
+same_layout_other_seed,avg_shortest_path,0.8146301077611313,1.3033328289347184,0.9584314419552991
+same_layout_other_seed,congestion_index,0.2950924963007063,0.4182569238578544,0.7312070043662466

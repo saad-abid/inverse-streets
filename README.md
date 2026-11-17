@@ -1,6 +1,6 @@
 # InverseStreets – Predicting and Generating Road Layouts with Deep Learning
 
-> **Status:** Phase 2 (mobility indicators) done.
+> **Status:** Phase 3 (CNN predictor) done.
 
 ## Goal
 Predict mobility indicators from small 2D street-grid images, and generate new layouts that reach
@@ -45,6 +45,15 @@ python -m src.build_labels --n 200        # quick small run
 ```
 Outputs: `data/labels.csv`, `results/indicators_by_style.csv`,
 `results/indicator_distributions.png`, `results/edge_load_heatmaps.png`.
+
+**Phase 3 – CNN predictor** (needs Phase 2 labels)
+```bash
+python -m src.predictor                   # 20 epochs, about 3-4 min on a laptop CPU
+python -m src.predictor --epochs 2        # quick check
+```
+Outputs: `models/predictor.pt` (not committed), `results/predictor_metrics.csv`,
+`results/predictor_metrics_by_style.csv`, `results/label_repeatability.csv`,
+`results/predictor_latency.csv`, `results/predictor_scatter.png`, `results/predictor_training.png`.
 
 ## Results
 ### Phase 1 – dataset
@@ -93,6 +102,38 @@ branches + side spurs; no layout has a detour index below 1.
 ![Indicator distributions](results/indicator_distributions.png)
 ![Edge loads](results/edge_load_heatmaps.png)
 
+### Phase 3 – CNN predictor (image -> indicators)
+A small CNN (4 conv blocks + 2 linear layers, 192,292 parameters) predicts four indicators at
+once from the 64x64 image. Targets are standardized with training statistics; training uses
+random rotations/flips (they do not change the indicators), Adam, 20 epochs, and keeps the epoch
+with the lowest validation loss. Training took 204 s on a laptop CPU.
+
+Test set (748 layouts):
+
+| Indicator | Mean baseline R² | Density-only linear R² | CNN R² | CNN MAE |
+|---|---|---|---|---|
+| road density | 0.000 | 1.000 (*) | 0.993 | 0.008 |
+| intersections | 0.000 | 0.422 | 0.983 | 1.60 |
+| avg shortest path (px) | 0.000 | 0.057 | 0.917 | 1.39 |
+| congestion index | 0.000 | 0.174 | 0.629 | 0.35 |
+
+(*) The density-only baseline gets road density exactly, since density is its input.
+
+**Label noise ceiling.** Average shortest path and congestion depend on random choices (source
+nodes, random trips). Recomputing the test labels with another seed and comparing with the
+stored labels gives R² = 0.958 (avg shortest path) and **0.731 (congestion index)**. No
+predictor can explain the random part of a label, so these are upper bounds: the CNN reaches
+0.917 and 0.629.
+
+CNN R² within each style is lower than overall (e.g. intersections in cul-de-sac layouts:
+0.103), because within one style the indicators vary much less; part of the overall R² comes
+from telling the styles apart. See `results/predictor_metrics_by_style.csv`.
+
+Inference on CPU (Intel Core, 4 PyTorch threads): 1.56 ms mean / 2.18 ms p95 per single
+image after warm-up, 0.98 ms per image in batches of 256.
+
+![Predicted vs true](results/predictor_scatter.png)
+
 ## Limitations
 - Layouts are simple procedural patterns on a 64x64 pixel grid, not real street maps.
 - The styles are easy to tell apart, and road density differs strongly between styles.
@@ -101,6 +142,8 @@ branches + side spurs; no layout has a detour index below 1.
   extra trips in radial layouts.
 - In 3 of 1,250 radial layouts, a very dense centre (thick ring + many spokes) leaves a small
   skeleton artefact counted as one dead end.
+- The CNN under-predicts high congestion values (regression towards the mean on a noisy label),
+  and much of its overall R² comes from recognising the layout style.
 - Connectivity is 1.0 for every layout, because the generator guarantees connected networks; it
   will only become informative for generated layouts (Phase 5).
 

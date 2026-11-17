@@ -1,0 +1,2 @@
+single_mean_ms,single_p95_ms,batched_ms_per_image,torch_threads,device,parameters,train_seconds,train_device
+1.5602624996972736,2.184030006901593,0.9782375000213506,4,cpu,192292,204.0,cpu

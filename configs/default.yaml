@@ -46,6 +46,10 @@ traffic:                  # simplified all-or-nothing assignment, NOT a calibrat
   congestion_threshold: 2.0   # load / mean load above which a segment counts as congested
   min_block_area: 4       # ignore city blocks smaller than this (pixels)
 
+predictor:
+  targets: [road_density, n_intersections, avg_shortest_path, congestion_index]
+  channels: [16, 32, 64, 64]   # conv blocks; each halves the image size
+
 training:
   batch_size: 64
   epochs: 20
