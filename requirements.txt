@@ -11,6 +11,7 @@ pyyaml>=6.0
 pytest>=8.0
 jsonschema>=4.20
 onnx>=1.15
+onnxscript>=0.5
 onnxruntime>=1.17
 streamlit>=1.30
 requests>=2.31

@@ -1,6 +1,6 @@
 # InverseStreets – Predicting and Generating Road Layouts with Deep Learning
 
-> **Status:** Phase 6 (constraints and LLM specification) done.
+> **Status:** Phase 7 (edge efficiency) done.
 
 ## Goal
 Predict mobility indicators from small 2D street-grid images, and generate new layouts that reach
@@ -81,6 +81,14 @@ python -m src.llm_spec --examples           # 8 consistent / inconsistent reques
 Outputs: `results/llm_requests.csv`, `results/llm_request_layouts.png`. `llm.num_gpu: 0` runs
 the model on the CPU; on the development laptop the Ollama GPU backend crashed with a CUDA
 toolchain error on an older NVIDIA driver.
+
+**Phase 7 – edge benchmark** (needs the trained predictor)
+```bash
+python -m src.edge_benchmark                # about 1 min
+python -m src.edge_benchmark --plot-only    # redraw the chart from the saved CSV
+```
+Outputs: `models/predictor_*.onnx` (not committed), `results/edge_benchmark.csv`,
+`results/edge_benchmark.png`.
 
 ## Results
 ### Phase 1 – dataset
@@ -245,6 +253,33 @@ of the training layouts (mostly cul-de-sacs) have a density below 0.10.
 
 ![Accepted requests](results/llm_request_layouts.png)
 
+### Phase 7 – edge efficiency
+The CNN predictor is exported to ONNX (FP32) and quantized to INT8 with onnxruntime. Besides
+the dynamic INT8 quantization from the project plan, two variants are compared: dynamic INT8 on
+the linear layers only, and static INT8 (QDQ, per-channel, calibrated on 256 training images).
+Device: Intel Core i7-7820HQ (2017 laptop CPU), onnxruntime 1.32, 748 test images, latency
+after 50 warm-up runs (`results/edge_benchmark.csv`):
+
+| Version | Size (MB) | Latency mean / p95, 1 thread (ms) | Latency mean, 4 threads (ms) | Mean R² | R² intersections |
+|---|---|---|---|---|---|
+| PyTorch FP32 | 0.781 | 2.186 / 2.823 | 1.312 | 0.8804 | 0.9826 |
+| ONNX FP32 | 0.792 | 0.317 / 0.382 | 0.211 | 0.8804 | 0.9826 |
+| ONNX INT8 dynamic (all layers) | 0.214 | 5.421 / 6.061 | 2.869 | 0.8801 | 0.9817 |
+| ONNX INT8 dynamic (linear layers only) | 0.396 | 0.321 / 0.372 | 0.208 | 0.8805 | 0.9827 |
+| ONNX INT8 static | 0.222 | 0.478 / 0.600 | 0.296 | 0.8614 | 0.9507 |
+
+- ONNX Runtime alone makes single-image inference about 7x faster than PyTorch (1 thread).
+- Dynamic INT8 on all layers is 3.7x smaller with the same accuracy, but **17x slower** than
+  ONNX FP32: dynamic quantization turns convolutions into `ConvInteger`, which has no fast CPU
+  kernel. It is meant for models dominated by matrix products.
+- Dynamic INT8 on the linear layers only halves the size at the same speed and accuracy: the
+  best trade-off here.
+- Static INT8 is 3.6x smaller and close to FP32 speed, but loses accuracy (intersections R²
+  0.983 -> 0.951). On this CPU (no 8-bit dot-product instructions) INT8 brings no speed-up for
+  such a small model.
+
+![Edge benchmark](results/edge_benchmark.png)
+
 ## Limitations
 - Layouts are simple procedural patterns on a 64x64 pixel grid, not real street maps.
 - The styles are easy to tell apart, and road density differs strongly between styles.
@@ -261,6 +296,8 @@ of the training layouts (mostly cul-de-sacs) have a density below 0.10.
 - LLM specification: tested on 8 hand-written requests only, with one small local model; the
   word-to-number mapping depends on the prompt. The connectivity rule (>= 0.95 of graph nodes in
   the main network) still lets very small loose fragments pass.
+- Edge benchmark: measured on one laptop CPU only, not on an embedded board; timings vary by a
+  few percent between runs; the model is so small that fixed per-call overhead matters.
 - Connectivity is 1.0 for every layout, because the generator guarantees connected networks; it
   will only become informative for generated layouts (Phase 5).
 

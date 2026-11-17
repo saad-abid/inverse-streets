@@ -126,7 +126,34 @@ For the two accepted requests, 5 of 20 and 13 of 20 generated layouts passed all
 graph method is what makes the final output trustworthy, since the generator itself cannot
 guarantee connectivity or aim at a congestion level.
 
-## 5. Possible improvements (not done)
+## 5. Making the predictor small and fast (Phase 7)
+
+Source: `edge_benchmark.csv` (Intel Core i7-7820HQ, 1 and 4 threads, 748 test images).
+
+Why it matters: an in-vehicle unit or a roadside device has little memory, a weak CPU, a power
+budget, and often must answer within a fixed time. The p95 latency (the time 95 % of calls stay
+under) matters more there than the mean, and a model that fits in a few hundred kilobytes can be
+updated over a slow link.
+
+What the measurements show:
+
+- **The runtime matters as much as the model.** The same FP32 network answers in 0.32 ms with
+  ONNX Runtime and in 2.19 ms with PyTorch (1 thread), with identical outputs. For a small model,
+  framework overhead dominates.
+- **Quantization is not automatically faster.** Dynamic INT8 on all layers makes the file 3.7x
+  smaller (0.79 -> 0.21 MB) without losing accuracy, but runs 17x slower (5.42 ms), because
+  quantized convolutions fall back to a slow generic kernel.
+- **Choosing what to quantize matters.** Quantizing only the linear layers, which hold most of
+  the weights, halves the size (0.40 MB) at the same speed and accuracy (mean R² 0.8805 vs
+  0.8804). This is the best trade-off found.
+- **Static INT8 trades accuracy for size.** It is the smallest version that stays fast (0.22 MB,
+  0.48 ms), but the intersections R² drops from 0.983 to 0.951. Calibrating on more or more varied
+  images, or keeping the first convolution in FP32, are the usual next steps.
+- **The hardware decides.** This 2017 CPU has no 8-bit dot-product instructions, so INT8 gives
+  no speed-up here; on recent x86 CPUs, ARM boards or an NVIDIA Jetson the result can differ and
+  has to be measured on the target device.
+
+## 6. Possible improvements (not done)
 
 Longer training (the validation loss was still decreasing at epoch 30); a connectivity or
 topology term in the loss; conditioning on more indicators (congestion) or on the style;
