@@ -50,6 +50,21 @@ predictor:
   targets: [road_density, n_intersections, avg_shortest_path, congestion_index]
   channels: [16, 32, 64, 64]   # conv blocks; each halves the image size
 
+generator:                # conditional VAE (Phase 4)
+  conditions: [road_density, n_intersections]   # add congestion_index later
+  latent_dim: 32
+  channels: [32, 64, 128, 128]
+  beta: 1.0               # weight of the KL term
+  kl_warmup_epochs: 5     # KL weight rises from 0 to beta over these epochs
+  epochs: 30
+  batch_size: 64
+  learning_rate: 0.001
+  threshold: 0.5          # post-processing: road if probability > threshold
+  calibrate_threshold: true   # choose the threshold on validation targets (density match)
+  threshold_candidates: [0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+  max_fragment_size: 10   # remove road fragments of <= this many pixels
+  max_hole_size: 4        # fill holes of <= this many pixels
+
 training:
   batch_size: 64
   epochs: 20

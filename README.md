@@ -1,6 +1,6 @@
 # InverseStreets – Predicting and Generating Road Layouts with Deep Learning
 
-> **Status:** Phase 3 (CNN predictor) done.
+> **Status:** Phase 4 (conditional generation) done.
 
 ## Goal
 Predict mobility indicators from small 2D street-grid images, and generate new layouts that reach
@@ -54,6 +54,15 @@ python -m src.predictor --epochs 2        # quick check
 Outputs: `models/predictor.pt` (not committed), `results/predictor_metrics.csv`,
 `results/predictor_metrics_by_style.csv`, `results/label_repeatability.csv`,
 `results/predictor_latency.csv`, `results/predictor_scatter.png`, `results/predictor_training.png`.
+
+**Phase 4 – conditional VAE** (needs Phase 2 labels)
+```bash
+python -m src.generator                     # train 30 epochs (about 8 min on a laptop CPU)
+python -m src.generator --from-checkpoint   # reuse models/generator.pt: recalibrate + figures
+```
+Outputs: `models/generator.pt` (not committed), `results/generator_training.csv/.png`,
+`results/generator_threshold_calibration.csv`, `results/generator_quickcheck.csv`,
+`results/generated_examples.png`.
 
 ## Results
 ### Phase 1 – dataset
@@ -134,6 +143,31 @@ image after warm-up, 0.98 ms per image in batches of 256.
 
 ![Predicted vs true](results/predictor_scatter.png)
 
+### Phase 4 – conditional generation (target indicators -> layout)
+A **conditional VAE** (1,467,905 parameters, latent size 32). The encoder sees a layout and its
+target values (road density, number of intersections) and compresses the layout into a latent
+vector z; the decoder rebuilds the layout from z and the targets. A KL term (weight rising from
+0 to 1 over the first 5 epochs) pushes z towards N(0, I), so new layouts are made by drawing
+z ~ N(0, I) and decoding it with chosen targets. Trained 30 epochs in 467 s on a laptop CPU
+(validation loss was still decreasing).
+
+Post-processing: threshold the road probabilities, remove road fragments of <= 10 pixels,
+fill holes of <= 4 pixels. With a 0.5 threshold, thin roads broke apart (the model spreads
+probability over neighbouring pixels when unsure of a road's exact position), and generated
+density was too low. The threshold is therefore **chosen on validation targets** by density
+match: 0.4 (`results/generator_threshold_calibration.csv`).
+
+Quick check on 100 test targets, one sample each, indicators recomputed with the graph method
+(`results/generator_quickcheck.csv`; full evaluation in Phase 5):
+
+| | Mean absolute error vs target | Note |
+|---|---|---|
+| road density | 0.032 | target mean 0.234 |
+| intersections | 9.12 | the mean predictor of Phase 3 has MAE 12.5 |
+| connected road network | 34% of samples | real layouts: 100% |
+
+![Generated layouts](results/generated_examples.png)
+
 ## Limitations
 - Layouts are simple procedural patterns on a 64x64 pixel grid, not real street maps.
 - The styles are easy to tell apart, and road density differs strongly between styles.
@@ -144,6 +178,9 @@ image after warm-up, 0.98 ms per image in batches of 256.
   skeleton artefact counted as one dead end.
 - The CNN under-predicts high congestion values (regression towards the mean on a noisy label),
   and much of its overall R² comes from recognising the layout style.
+- The cVAE matches road density reasonably but intersections poorly, often produces broken
+  networks (34% connected), draws thin regular grids as broken lines, and never draws rings:
+  two numbers do not tell it which style to draw.
 - Connectivity is 1.0 for every layout, because the generator guarantees connected networks; it
   will only become informative for generated layouts (Phase 5).
 
