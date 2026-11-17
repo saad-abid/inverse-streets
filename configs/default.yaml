@@ -1,0 +1,36 @@
+# Default configuration for InverseStreets.
+# All phases read their parameters from this file.
+
+seed: 42
+
+paths:
+  data_dir: data
+  models_dir: models
+  results_dir: results
+
+dataset:
+  image_size: 64          # images are image_size x image_size pixels
+  n_samples: 5000
+  splits:                 # train / validation / test fractions
+    train: 0.70
+    val: 0.15
+    test: 0.15
+  styles: [regular_grid, irregular_grid, radial, cul_de_sac]
+
+grid:
+  spacing_min: 8          # street spacing in pixels
+  spacing_max: 16
+  road_width_min: 1       # road width in pixels
+  road_width_max: 3
+  removal_prob: 0.2       # irregular grid: chance to remove a street segment
+  max_shift: 2            # irregular grid: max street shift in pixels
+
+traffic:
+  n_trips: 200            # origin-destination trips per layout
+  congestion_threshold: 2.0   # load / mean load above which a segment counts as congested
+
+training:
+  batch_size: 64
+  epochs: 20
+  learning_rate: 0.001
+  num_workers: 0          # 0 is safest on Windows

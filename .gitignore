@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+
+# Generated data and model weights (never commit)
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.npz
+*.npy
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,16 @@
+numpy>=1.26
+scipy>=1.11
+scikit-image>=0.22
+networkx>=3.2
+matplotlib>=3.8
+pandas>=2.1
+torch>=2.2
+torchvision>=0.17
+tqdm>=4.66
+pyyaml>=6.0
+pytest>=8.0
+jsonschema>=4.20
+onnx>=1.15
+onnxruntime>=1.17
+streamlit>=1.30
+requests>=2.31
