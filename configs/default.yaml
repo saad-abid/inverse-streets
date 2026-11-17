@@ -22,8 +22,17 @@ grid:
   spacing_max: 16
   road_width_min: 1       # road width in pixels
   road_width_max: 3
-  removal_prob: 0.2       # irregular grid: chance to remove a street segment
+  removal_prob_min: 0.1   # irregular grid: chance to remove a street segment,
+  removal_prob_max: 0.4   #   drawn uniformly per layout in [min, max]
   max_shift: 2            # irregular grid: max street shift in pixels
+
+radial:
+  n_spokes_min: 4
+  n_spokes_max: 10
+
+cul_de_sac:
+  branch_prob: 0.8        # chance of a dead-end branch at each position on each side
+  spur_prob: 0.4          # chance that a branch gets a short side spur
 
 traffic:
   n_trips: 200            # origin-destination trips per layout
