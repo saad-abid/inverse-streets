@@ -1,6 +1,7 @@
 # InverseStreets – Predicting and Generating Road Layouts with Deep Learning
 
-> **Status:** Phase 7 (edge efficiency) done.
+> **Status:** all phases done: dataset, indicators, predictor, generator, evaluation,
+> constraints + LLM, edge benchmark, demo.
 
 ## Goal
 Predict mobility indicators from small 2D street-grid images, and generate new layouts that reach
@@ -18,6 +19,55 @@ and checked against consistency rules. The predictor is also exported for edge d
   calibrated traffic simulation.
 - Every number in this README comes from running the code in this repository.
 
+## Key findings
+- **Prediction works, within limits set by the labels.** A 192k-parameter CNN predicts road
+  density, intersections and average shortest path with test R² 0.99 / 0.98 / 0.92. Congestion
+  reaches 0.63, against a ceiling of 0.73 caused by the randomness of the trips themselves.
+- **Generation is the hard part.** A conditional VAE follows the density target (MAE 0.031) but
+  intersections only roughly (MAE 7.4), and only 38 % of generated layouts form one connected
+  road network. Retrieving the closest real layout beats it on every metric.
+- **A learned predictor is not a valid judge of generated layouts.** On generated images the
+  CNN's R² for average shortest path falls from 0.92 to 0.19. Generated layouts are therefore
+  checked with the graph method.
+- **Explicit rules catch inconsistent requests.** A local LLM translates text into JSON without
+  repairing contradictions; data-driven rules then reject requests such as "very low road density
+  but 40 intersections" with an explanation, before anything is generated.
+- **For edge deployment, the runtime and what you quantize matter most.** ONNX Runtime is 7x
+  faster than PyTorch here; dynamic INT8 on all layers is 3.7x smaller but 17x slower; INT8 on
+  the linear layers only halves the size at the same speed and accuracy.
+
+Details and discussion: [`results/analysis.md`](results/analysis.md).
+
+## Demo
+```bash
+streamlit run app/streamlit_app.py
+```
+Three tabs: **Predict** (pick a test layout or upload an image: CNN prediction vs graph method,
+edge-load heatmap), **Generate** (target sliders or a text request for the local LLM: rule
+checks, then generated layouts with recomputed indicators and a valid / invalid mark),
+**Benchmark** (edge results). Needs the data and models from phases 1–4 (see below); the text
+request needs Ollama, the rest works without it.
+
+## Repository structure
+```
+configs/default.yaml     all parameters and seeds
+src/generate_layouts.py  synthetic layouts (4 styles)            Phase 1
+src/graph_metrics.py     image -> road graph -> indicators        Phase 2
+src/traffic.py           random trips + all-or-nothing assignment Phase 2
+src/build_labels.py      indicators for the whole dataset         Phase 2
+src/dataset.py           splits, target scaling, augmentation     Phase 3
+src/predictor.py         CNN predictor + baselines                Phase 3
+src/generator.py         conditional VAE                          Phase 4
+src/evaluate.py          metrics, evaluation of generated layouts Phase 3, 5
+src/constraints.py       consistency rules                        Phase 6
+src/llm_spec.py          text request -> JSON -> rules            Phase 6
+src/edge_benchmark.py    ONNX, INT8, latency / size               Phase 7
+app/streamlit_app.py     demo                                     Phase 8
+results/                 metrics (CSV), figures, analysis.md
+tests/                   pytest suite (runs offline)
+```
+`data/` and `models/` are generated locally and not committed.
+
 ## Installation
 ```bash
 python -m venv .venv
@@ -30,6 +80,12 @@ pytest
 ```
 
 ## How to run each phase
+Full pipeline from scratch on a laptop CPU (about 15 minutes in total, seed 42):
+```bash
+python -m src.generate_layouts && python -m src.build_labels && python -m src.predictor \
+  && python -m src.generator && python -m src.evaluate && python -m src.edge_benchmark
+```
+
 **Phase 1 – synthetic dataset**
 ```bash
 python -m src.generate_layouts            # 5,000 layouts, settings in configs/default.yaml
@@ -164,7 +220,7 @@ CNN R² within each style is lower than overall (e.g. intersections in cul-de-sa
 0.103), because within one style the indicators vary much less; part of the overall R² comes
 from telling the styles apart. See `results/predictor_metrics_by_style.csv`.
 
-Inference on CPU (Intel Core, 4 PyTorch threads): 1.56 ms mean / 2.18 ms p95 per single
+Inference on CPU (Intel Core i7-7820HQ, 4 PyTorch threads): 1.56 ms mean / 2.18 ms p95 per single
 image after warm-up, 0.98 ms per image in batches of 256.
 
 ![Predicted vs true](results/predictor_scatter.png)
@@ -291,16 +347,22 @@ after 50 warm-up runs (`results/edge_benchmark.csv`):
 - The CNN under-predicts high congestion values (regression towards the mean on a noisy label),
   and much of its overall R² comes from recognising the layout style.
 - The cVAE matches road density reasonably but intersections poorly, often produces broken
-  networks (34% connected), draws thin regular grids as broken lines, and never draws rings:
-  two numbers do not tell it which style to draw.
+  networks (38.3 % connected in Phase 5), draws thin regular grids as broken lines, and never
+  draws rings: two numbers do not tell it which style to draw.
 - LLM specification: tested on 8 hand-written requests only, with one small local model; the
   word-to-number mapping depends on the prompt. The connectivity rule (>= 0.95 of graph nodes in
   the main network) still lets very small loose fragments pass.
 - Edge benchmark: measured on one laptop CPU only, not on an embedded board; timings vary by a
   few percent between runs; the model is so small that fixed per-call overhead matters.
-- Connectivity is 1.0 for every layout, because the generator guarantees connected networks; it
-  will only become informative for generated layouts (Phase 5).
+- Connectivity is 1.0 for every real layout, because the layout generator guarantees connected
+  networks; it is only informative for generated layouts.
+- The demo is a prototype for exploring results, not a validated planning tool.
 
 ## Future work
-Real OpenStreetMap tiles, calibrated traffic assignment, link with PTV Visum/Vissim,
-multi-agent simulation, deployment on an NVIDIA Jetson.
+- **Data:** real OpenStreetMap tiles instead of synthetic patterns.
+- **Traffic:** calibrated demand and capacity-restrained / equilibrium assignment; link with
+  PTV Visum / Vissim; multi-agent simulation.
+- **Generation:** a connectivity or topology term in the loss, conditioning on style and
+  congestion, generating graphs instead of pixels, a conditional diffusion model for comparison.
+- **Edge:** deployment and measurement on an NVIDIA Jetson or an ARM board; better static INT8
+  calibration.
